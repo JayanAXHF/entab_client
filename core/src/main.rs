@@ -1,5 +1,6 @@
 mod login;
 use clap::Parser;
+use client_core::AssignmentType;
 use crossterm::cursor::SavePosition;
 use crossterm::ExecutableCommand;
 use std::io::stdout;
@@ -11,6 +12,9 @@ use tracing_subscriber::field::MakeExt;
 struct Args {
     #[arg(short, long)]
     login: bool,
+
+    #[arg(short, long, default_value_t = AssignmentType::Homework)]
+    type_: AssignmentType,
 }
 
 #[tokio::main]
@@ -26,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .map_fmt_fields(|f| f.debug_alt())
         .init();
-    let mut app = client_core::App::new().await;
+    let mut app = client_core::App::new(args.type_).await;
     app.run().await?;
     Ok(())
 }

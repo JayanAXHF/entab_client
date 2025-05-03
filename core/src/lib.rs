@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
-use anyhow::{Context, Ok, Result};
+use anyhow::{anyhow, Context, Error, Ok, Result};
 use crossterm::{
-    cursor::{Hide, MoveToColumn, MoveUp, RestorePosition, Show},
+    cursor::{Hide, MoveTo, MoveToColumn, MoveUp, RestorePosition, Show},
     event,
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal::{self, disable_raw_mode, enable_raw_mode, Clear, ClearType},
@@ -9,9 +9,9 @@ use crossterm::{
 };
 use lazy_static::lazy_static;
 use reqwest::{header, Client};
-use std::env;
 use std::io::stdout;
 use std::{collections::HashMap, fmt};
+use std::{env, str::FromStr};
 use tl::{parse, ParserOptions};
 
 lazy_static! {
@@ -139,7 +139,7 @@ impl Assignment {
             self.s_no, self.id, self.name, self.date, self.type_
         )
     }
-    pub async fn get_details(&self) -> Result<String> {
+    pub async fn get_details(&self, type_: AssignmentType) -> Result<String> {
         let SESSION_ID: String = SESSION_ID_STAT.clone();
         let REQUEST_VERIFICATION_TOKEN: String = REQUEST_VERIFICATION_TOKEN_STAT.clone();
         let ASPXAUTH: String = ASPXAUTH_STAT.clone();
@@ -178,8 +178,9 @@ impl Assignment {
         headers.insert(header::COOKIE, cookies.parse().unwrap());
 
         let mut form = HashMap::new();
-        form.insert("AssignType", "C");
+        let type_ = type_.to_string();
         form.insert("frmDate", "");
+        form.insert("AssignType", &type_);
         form.insert("toDate", "");
         form.insert("Subject", "0");
         form.insert("AssigID", self.id.as_str());
@@ -237,20 +238,37 @@ pub fn print_table(rows: Vec<Assignment>) -> Result<()> {
 pub struct App {
     assignments: Vec<Assignment>,
     selected_assignment: Option<Assignment>,
+    assignment_type: AssignmentType,
+    window_start: usize,
+    window_size: usize,
+    mode: Modes,
 }
 
 impl App {
-    pub async fn new() -> Self {
-        let assignments = get_circular().await.unwrap();
+    pub async fn new(type_: AssignmentType) -> Self {
+        let assignments = match type_ {
+            AssignmentType::Circular => get_circular().await.unwrap(),
+            AssignmentType::Homework => homework::get_hw().await.unwrap(),
+        };
         let selected_assignment = None;
+        let (_, window_size) = terminal::size().unwrap();
         Self {
             assignments,
             selected_assignment,
+            assignment_type: type_,
+            window_start: 0,
+            window_size: window_size as usize - 1,
+            mode: Modes::ViewingList,
         }
     }
+    pub fn change_mode(&mut self, mode: Modes) {
+        self.mode = mode;
+    }
     pub fn print_table(&self) -> Result<()> {
+        stdout().execute(Clear(ClearType::All))?;
+        stdout().execute(MoveTo(0, 0))?;
         let rows = self.assignments.clone();
-        for row in rows {
+        for row in rows.iter().skip(self.window_start).take(self.window_size) {
             let mut text = row.field();
             if let Some(selected_assignment) = self.get_selected_assignment() {
                 if selected_assignment.s_no == row.s_no {
@@ -276,6 +294,13 @@ impl App {
     pub fn get_selected_assignment(&self) -> Option<Assignment> {
         self.selected_assignment.clone()
     }
+    fn adjust_window(&mut self, selected_index: usize) {
+        if selected_index < self.window_start {
+            self.window_start = selected_index;
+        } else if selected_index >= self.window_start + self.window_size {
+            self.window_start = selected_index + 1 - self.window_size;
+        }
+    }
     pub async fn run(&mut self) -> Result<()> {
         enable_raw_mode()?;
         self.print_table()?;
@@ -297,14 +322,15 @@ impl App {
                             let index = selected_assignment.s_no.parse::<usize>().unwrap();
                             if index == assignments.len() {
                                 self.select_assignment(assignments[0].clone());
-                                continue;
+                                self.window_start = 0;
                             }
-                            let next_assignment = assignments.get(index);
-                            if let Some(next_assignment) = next_assignment {
+                            if let Some(next_assignment) = assignments.get(index) {
                                 self.select_assignment(next_assignment.clone());
+                                self.adjust_window(index);
                             }
                         } else {
                             self.select_assignment(self.assignments[0].clone());
+                            self.window_start = 0;
                         }
                     }
                     event::KeyCode::Char('k') => {
@@ -313,19 +339,25 @@ impl App {
                             let index = selected_assignment.s_no.parse::<usize>().unwrap();
                             if index == 1 {
                                 self.select_assignment(assignments[assignments.len() - 1].clone());
-                                continue;
-                            }
-                            let next_assignment = assignments.get(index - 2);
-                            if let Some(next_assignment) = next_assignment {
-                                self.select_assignment(next_assignment.clone());
+                                self.window_start =
+                                    assignments.len().saturating_sub(self.window_size);
+                            } else {
+                                if let Some(next_assignment) = assignments.get(index - 2) {
+                                    self.select_assignment(next_assignment.clone());
+                                    self.adjust_window(index - 2);
+                                }
                             }
                         } else {
                             self.select_assignment(self.assignments[0].clone());
+                            self.window_start = 0;
                         }
                     }
                     event::KeyCode::Enter => {
                         if let Some(selected_assignment) = self.get_selected_assignment() {
-                            let details = selected_assignment.get_details().await.unwrap();
+                            let details = selected_assignment
+                                .get_details(self.assignment_type.clone())
+                                .await
+                                .unwrap();
                             stdout().execute(Clear(ClearType::All))?;
                             stdout().execute(Print(details))?;
                             break;
@@ -395,7 +427,133 @@ impl fmt::Display for Link {
     }
 }
 
-#[cfg(test)]
-mod tests {
+#[derive(Clone, Debug)]
+pub enum AssignmentType {
+    Circular,
+    Homework,
+}
+
+impl fmt::Display for AssignmentType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AssignmentType::Circular => write!(f, "C"),
+            AssignmentType::Homework => write!(f, "H"),
+        }
+    }
+}
+
+impl FromStr for AssignmentType {
+    type Err = String; // Return an error message instead of just a unit type.
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "H" => std::result::Result::Ok(AssignmentType::Homework),
+            "C" => std::result::Result::Ok(AssignmentType::Circular),
+            _ => Err(format!("Invalid assignment type: '{}'", s)),
+        }
+    }
+}
+mod homework {
     use super::*;
+    pub async fn get_hw() -> Result<Vec<Assignment>> {
+        let SESSION_ID: String = SESSION_ID_STAT.clone();
+        let REQUEST_VERIFICATION_TOKEN: String = REQUEST_VERIFICATION_TOKEN_STAT.clone();
+        let ASPXAUTH: String = ASPXAUTH_STAT.clone();
+        let client = Client::new();
+
+        let url = "https://www.lviscampuscare.org/Parent/AssignmentDetailsByAssignmentType";
+
+        let mut headers = header::HeaderMap::new();
+        headers.insert(
+            header::ACCEPT,
+            "application/json, text/javascript, */*; q=0.01"
+                .parse()
+                .unwrap(),
+        );
+        headers.insert(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded; charset=UTF-8"
+                .parse()
+                .unwrap(),
+        );
+        headers.insert(
+            header::ORIGIN,
+            "https://www.lviscampuscare.org".parse().unwrap(),
+        );
+        headers.insert(
+            header::REFERER,
+            "https://www.lviscampuscare.org/Parent/Assignment"
+                .parse()
+                .unwrap(),
+        );
+        headers.insert(header::USER_AGENT, "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Mobile Safari/537.36".parse().unwrap());
+        headers.insert("x-requested-with", "XMLHttpRequest".parse().unwrap());
+
+        let cookies = format!("ASP.NET_SessionId={}; chk=enable; __RequestVerificationToken={}; .ASPXAUTH={}; SchoolCode=11674", SESSION_ID, REQUEST_VERIFICATION_TOKEN, ASPXAUTH);
+        headers.insert(header::COOKIE, cookies.parse().unwrap());
+
+        let mut form = HashMap::new();
+        form.insert("AssignType", "H");
+        form.insert("frmDate", "");
+        form.insert("toDate", "");
+        form.insert("Subject", "");
+
+        let response = client
+            .post(url)
+            .headers(headers)
+            .form(&form)
+            .send()
+            .await?
+            .text()
+            .await
+            .context("Failed to get response")?;
+
+        let response: serde_json::Value =
+            serde_json::from_str(&response).context("Failed to parse response")?;
+        let data = response["Data"].as_array().unwrap()[0].as_str().unwrap();
+        let parsed_table = parse(data, ParserOptions::default())?;
+        let parser = parsed_table.parser();
+        let mut rows = vec![];
+        parsed_table.nodes().iter().for_each(|row| {
+            let tag = row.as_tag();
+
+            if let Some(tag) = tag {
+                if tag.name() != "tr" {
+                    return;
+                }
+            }
+            let subnodes = row.children();
+            if let Some(subnodes) = subnodes {
+                let subnodes = subnodes.all(parser);
+                let mut row = vec![];
+                let mut id = String::new();
+                for subnode in subnodes {
+                    let tag = subnode.as_tag();
+                    if tag.is_some() {
+                        let text = subnode.inner_text(parser).to_string();
+                        row.push(text.replace(['\r', '\n'], "").trim().to_string());
+                        if let Some(a_id) = tag.unwrap().attributes().id() {
+                            id = a_id.to_owned().as_utf8_str().to_string();
+                        }
+                    }
+                }
+                let row = Assignment {
+                    s_no: row[0].clone(),
+                    date: row[1].clone(),
+                    type_: row[2].clone(),
+                    name: row[3].clone().replace("&#39;", "'").clean_string(),
+                    id,
+                };
+                rows.push(row);
+            }
+        });
+
+        Ok(rows)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum Modes {
+    ViewingList,
+    Filtering,
 }
