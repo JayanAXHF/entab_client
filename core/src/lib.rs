@@ -1,15 +1,19 @@
-#![allow(non_snake_case)]
-use anyhow::{anyhow, Context, Error, Ok, Result};
+#![allow(non_snake_case, clippy::collapsible_else_if)]
+
+use anyhow::{Context, Ok, Result};
 use crossterm::{
-    cursor::{Hide, MoveTo, MoveToColumn, MoveUp, RestorePosition, Show},
-    event,
-    style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
+    cursor::{Hide, MoveLeft, MoveRight, MoveTo, MoveToColumn, MoveUp, RestorePosition, Show},
+    event::{self, KeyEvent, KeyModifiers},
+    style::{
+        Color, Print, PrintStyledContent, ResetColor, SetBackgroundColor, SetForegroundColor,
+        Stylize,
+    },
     terminal::{self, disable_raw_mode, enable_raw_mode, Clear, ClearType},
-    ExecutableCommand,
+    ExecutableCommand, QueueableCommand,
 };
 use lazy_static::lazy_static;
 use reqwest::{header, Client};
-use std::io::stdout;
+use std::io::{stdout, Write};
 use std::{collections::HashMap, fmt};
 use std::{env, str::FromStr};
 use tl::{parse, ParserOptions};
@@ -27,7 +31,7 @@ lazy_static! {
         .unwrap();
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Assignment {
     pub id: String,
     pub name: String,
@@ -136,7 +140,7 @@ impl Assignment {
     pub fn field(&self) -> String {
         format!(
             "{} {} {} {} {}",
-            self.s_no, self.id, self.name, self.date, self.type_
+            self.s_no, self.id, self.date, self.type_, self.name
         )
     }
     pub async fn get_details(&self, type_: AssignmentType) -> Result<String> {
@@ -226,15 +230,6 @@ impl Assignment {
     }
 }
 
-pub fn print_table(rows: Vec<Assignment>) -> Result<()> {
-    for row in rows {
-        let text = row.field();
-        stdout().execute(Print(text))?;
-        stdout().execute(Print("\n"))?;
-    }
-    Ok(())
-}
-
 pub struct App {
     assignments: Vec<Assignment>,
     selected_assignment: Option<Assignment>,
@@ -242,6 +237,7 @@ pub struct App {
     window_start: usize,
     window_size: usize,
     mode: Modes,
+    assignment_filter: String,
 }
 
 impl App {
@@ -250,6 +246,16 @@ impl App {
             AssignmentType::Circular => get_circular().await.unwrap(),
             AssignmentType::Homework => homework::get_hw().await.unwrap(),
         };
+        let assignments = assignments
+            .into_iter()
+            .map(|a| {
+                let mut number = a.s_no;
+                if number.len() == 1 {
+                    number.insert(0, '0');
+                }
+                Assignment { s_no: number, ..a }
+            })
+            .collect::<Vec<_>>();
         let selected_assignment = None;
         let (_, window_size) = terminal::size().unwrap();
         Self {
@@ -257,35 +263,58 @@ impl App {
             selected_assignment,
             assignment_type: type_,
             window_start: 0,
-            window_size: window_size as usize - 1,
+            window_size: window_size as usize - 2,
             mode: Modes::ViewingList,
+            assignment_filter: String::new(),
         }
     }
     pub fn change_mode(&mut self, mode: Modes) {
         self.mode = mode;
     }
+    pub fn cycle_modes(&mut self) {
+        match self.mode {
+            Modes::ViewingList => self.mode = Modes::Filtering,
+            Modes::Filtering => self.mode = Modes::ViewingList,
+        }
+    }
     pub fn print_table(&self) -> Result<()> {
-        stdout().execute(Clear(ClearType::All))?;
-        stdout().execute(MoveTo(0, 0))?;
+        stdout().queue(Clear(ClearType::All))?;
+        stdout().queue(MoveTo(0, 1))?;
         let rows = self.assignments.clone();
-        for row in rows.iter().skip(self.window_start).take(self.window_size) {
+
+        let rows = rows
+            .iter()
+            .filter(|a| {
+                let str = format!("{} {} {}", a.name, a.type_, a.date);
+                str.to_lowercase()
+                    .contains(&self.assignment_filter.to_lowercase())
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+            .clone();
+        for row in rows
+            .into_iter()
+            .skip(self.window_start)
+            .take(self.window_size)
+        {
             let mut text = row.field();
             if let Some(selected_assignment) = self.get_selected_assignment() {
                 if selected_assignment.s_no == row.s_no {
                     text.insert_str(0, "\x1b[96m> \x1b[0m\x1b[30;107m");
-                    stdout().execute(SetBackgroundColor(Color::White))?;
-                    stdout().execute(SetForegroundColor(Color::Black))?;
+                    stdout().queue(SetBackgroundColor(Color::White))?;
+                    stdout().queue(SetForegroundColor(Color::Black))?;
                 } else {
                     text.insert_str(0, "  ");
                 }
             }
-            stdout().execute(Print(text))?;
-            stdout().execute(ResetColor)?;
-            stdout().execute(Print("\n"))?;
-            stdout().execute(MoveToColumn(0))?;
+            stdout().queue(Print(text))?;
+            stdout().queue(ResetColor)?;
+            stdout().queue(Print("\n"))?;
+            stdout().queue(MoveToColumn(0))?;
         }
 
-        stdout().execute(RestorePosition)?;
+        stdout().queue(RestorePosition)?;
+        stdout().flush()?;
         Ok(())
     }
     pub fn select_assignment(&mut self, assignment: Assignment) {
@@ -301,64 +330,146 @@ impl App {
             self.window_start = selected_index + 1 - self.window_size;
         }
     }
+
+    async fn handle_list_navigation(&mut self, key: KeyEvent) -> Result<()> {
+        stdout().execute(Hide)?;
+        let assignments = self.assignments.clone();
+        let assignments = assignments
+            .iter()
+            .filter(|a| {
+                let str = format!("{} {} {}", a.name, a.type_, a.date);
+                str.to_lowercase()
+                    .contains(&self.assignment_filter.to_lowercase())
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+            .clone();
+
+        match key {
+            KeyEvent {
+                code: event::KeyCode::Char('j'),
+                ..
+            } => {
+                if let Some(selected_assignment) = self.get_selected_assignment() {
+                    let index = assignments
+                        .iter()
+                        .position(|a| a == &selected_assignment)
+                        .unwrap_or(0)
+                        + 1;
+                    if index == assignments.len() {
+                        self.select_assignment(assignments[0].clone());
+                        self.window_start = 0;
+                    }
+                    if let Some(next_assignment) = assignments.get(index) {
+                        self.select_assignment(next_assignment.clone());
+                        self.adjust_window(index);
+                    }
+                } else {
+                    self.select_assignment(self.assignments[0].clone());
+                    self.window_start = 0;
+                }
+            }
+            KeyEvent {
+                code: event::KeyCode::Char('k'),
+                ..
+            } => {
+                if let Some(selected_assignment) = self.get_selected_assignment() {
+                    let index = assignments
+                        .iter()
+                        .position(|a| a == &selected_assignment)
+                        .unwrap_or(0)
+                        + 1;
+
+                    if index == 1 {
+                        self.select_assignment(assignments[assignments.len() - 1].clone());
+                        self.window_start = assignments.len().saturating_sub(self.window_size);
+                    } else {
+                        if let Some(next_assignment) = assignments.get(index - 2) {
+                            self.select_assignment(next_assignment.clone());
+                            self.adjust_window(index - 2);
+                        }
+                    }
+                } else {
+                    self.select_assignment(self.assignments[0].clone());
+                    self.window_start = 0;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    async fn handle_typing(&mut self, key: KeyEvent) -> Result<()> {
+        stdout().execute(Show)?;
+        match key.code {
+            event::KeyCode::Left => {
+                stdout().execute(MoveLeft(1))?;
+            }
+            event::KeyCode::Right => {
+                stdout().execute(MoveRight(1))?;
+            }
+            event::KeyCode::Backspace => {
+                self.assignment_filter.pop();
+                self.print_table()?;
+            }
+            event::KeyCode::Char(c) => {
+                if c.is_ascii() {
+                    self.assignment_filter.push(c);
+                    self.print_table()?;
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
     pub async fn run(&mut self) -> Result<()> {
         enable_raw_mode()?;
+        stdout().execute(MoveTo(0, 0))?;
         self.print_table()?;
         stdout().execute(Hide)?;
         loop {
             stdout().execute(MoveUp(self.assignments.len() as u16))?;
-            stdout().execute(terminal::Clear(terminal::ClearType::FromCursorDown))?;
-            self.print_table()?;
-            stdout().execute(MoveUp(self.assignments.len() as u16))?;
+            if let Modes::ViewingList = self.mode {
+                stdout().execute(terminal::Clear(terminal::ClearType::FromCursorDown))?;
+                self.print_table()?;
+                stdout().execute(MoveUp(self.assignments.len() as u16))?;
+            }
+            stdout().execute(MoveTo(0, 0))?;
+            stdout().execute(PrintStyledContent("? Filter: ".with(Color::Green)))?;
+            stdout().execute(Print(self.assignment_filter.clone()))?;
+
             let event = event::read().unwrap();
             if let event::Event::Key(key) = event {
-                match key.code {
-                    event::KeyCode::Char('q') => {
+                match self.mode {
+                    Modes::ViewingList => self.handle_list_navigation(key).await?,
+                    Modes::Filtering => self.handle_typing(key).await?,
+                };
+                match key {
+                    KeyEvent {
+                        code: event::KeyCode::Char('q'),
+                        modifiers: KeyModifiers::CONTROL,
+                        ..
+                    } => {
                         break;
                     }
-                    event::KeyCode::Char('j') => {
-                        if let Some(selected_assignment) = self.get_selected_assignment() {
-                            let assignments = self.assignments.clone();
-                            let index = selected_assignment.s_no.parse::<usize>().unwrap();
-                            if index == assignments.len() {
-                                self.select_assignment(assignments[0].clone());
-                                self.window_start = 0;
-                            }
-                            if let Some(next_assignment) = assignments.get(index) {
-                                self.select_assignment(next_assignment.clone());
-                                self.adjust_window(index);
-                            }
-                        } else {
-                            self.select_assignment(self.assignments[0].clone());
-                            self.window_start = 0;
-                        }
+                    KeyEvent {
+                        code: event::KeyCode::Tab,
+                        ..
+                    } => {
+                        self.cycle_modes();
                     }
-                    event::KeyCode::Char('k') => {
-                        if let Some(selected_assignment) = self.get_selected_assignment() {
-                            let assignments = self.assignments.clone();
-                            let index = selected_assignment.s_no.parse::<usize>().unwrap();
-                            if index == 1 {
-                                self.select_assignment(assignments[assignments.len() - 1].clone());
-                                self.window_start =
-                                    assignments.len().saturating_sub(self.window_size);
-                            } else {
-                                if let Some(next_assignment) = assignments.get(index - 2) {
-                                    self.select_assignment(next_assignment.clone());
-                                    self.adjust_window(index - 2);
-                                }
-                            }
-                        } else {
-                            self.select_assignment(self.assignments[0].clone());
-                            self.window_start = 0;
-                        }
-                    }
-                    event::KeyCode::Enter => {
+                    KeyEvent {
+                        code: event::KeyCode::Enter,
+                        ..
+                    } => {
                         if let Some(selected_assignment) = self.get_selected_assignment() {
                             let details = selected_assignment
                                 .get_details(self.assignment_type.clone())
                                 .await
                                 .unwrap();
                             stdout().execute(Clear(ClearType::All))?;
+                            stdout().execute(Print("\r\n"))?;
                             stdout().execute(Print(details))?;
                             break;
                         }

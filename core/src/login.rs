@@ -3,14 +3,13 @@ use std::{collections::HashMap, env};
 use inquire::Text;
 use reqwest::{
     header::{
-        self, HeaderMap, HeaderValue, ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, CONTENT_TYPE,
-        COOKIE, ORIGIN, REFERER, SET_COOKIE, USER_AGENT,
+        HeaderMap, HeaderValue, ACCEPT, ACCEPT_LANGUAGE, CONTENT_TYPE, COOKIE, ORIGIN, REFERER,
+        SET_COOKIE, USER_AGENT,
     },
     Client,
 };
 use sha1::{Digest, Sha1};
 use tl::{parse, ParserOptions};
-use tracing::info;
 
 pub struct Login;
 
@@ -148,7 +147,6 @@ impl Login {
         let body = res.text().await?;
 
         let parsed_table = parse(&body, ParserOptions::default())?;
-        let parser = parsed_table.parser();
         let mut token = String::new();
         parsed_table.nodes().iter().for_each(|row| {
             let tag = row.as_tag();
