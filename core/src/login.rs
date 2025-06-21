@@ -15,8 +15,8 @@ pub struct Login;
 
 impl Login {
     pub async fn login() -> Result<(), anyhow::Error> {
-        let username = Text::new("What is your name?").prompt()?;
-        let password = Text::new("What is your password?").prompt()?;
+        let username = Text::new("Username").prompt()?;
+        let password = Text::new("Password").prompt()?;
 
         let res_token = Self::get_request_verification_token().await?;
         env::set_var("ENTAB_REQUEST_VERIFICATION_TOKEN", &res_token);
@@ -105,6 +105,9 @@ impl Login {
                 }
             })
             .collect::<Vec<_>>();
+        for (name, value) in &cookies {
+            env::set_var(name, value);
+        }
         let mut export_command = String::from("export ");
         cookies.iter().for_each(|(name, value)| {
             env::set_var(name, value);
@@ -116,7 +119,6 @@ impl Login {
         export_command.push_str("ENTAB_REQUEST_VERIFICATION_TOKEN");
         export_command.push('=');
         export_command.push_str(&res_token);
-        println!("{}", export_command);
 
         Ok(())
     }
@@ -124,7 +126,6 @@ impl Login {
     pub async fn get_request_verification_token() -> Result<String, anyhow::Error> {
         let client = reqwest::Client::builder().build()?;
 
-        // Headers to mimic a real browser
         let mut headers = HeaderMap::new();
         headers.insert(ACCEPT, HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"));
         headers.insert(
@@ -137,7 +138,6 @@ impl Login {
             HeaderValue::from_static("https://www.lviscampuscare.org/"),
         );
 
-        // Step 1: Fetch the login page
         let res = client
             .get("https://www.lviscampuscare.org/Logon/Logon")
             .headers(headers.clone())

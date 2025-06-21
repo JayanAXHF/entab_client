@@ -507,6 +507,7 @@ impl CleanString for String {
             ("&amp;", "&"),
             ("&lt;", "<"),
             ("&gt;", ">"),
+            ("&#39;", "'"),
         ];
         let mut out = self;
         for (from, to) in replace_map.iter() {
@@ -564,7 +565,7 @@ impl FromStr for AssignmentType {
         }
     }
 }
-mod homework {
+pub mod homework {
     use super::*;
     pub async fn get_hw() -> Result<Vec<Assignment>> {
         let SESSION_ID: String = SESSION_ID_STAT.clone();
@@ -652,7 +653,7 @@ mod homework {
                     s_no: row[0].clone(),
                     date: row[1].clone(),
                     type_: row[2].clone(),
-                    name: row[3].clone().replace("&#39;", "'").clean_string(),
+                    name: row[3].clone().clean_string(),
                     id,
                 };
                 rows.push(row);
