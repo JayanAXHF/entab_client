@@ -29,15 +29,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .map_fmt_fields(|f| f.debug_alt())
         .init();
-    // let mut app = client_core::App::new(args.type_).await;
-    match args.type_.clone() {
-        AssignmentType::Homework => {
-            let hw = get_hw().await;
-        }
-        AssignmentType::Circular => {
-            let hw = get_circular().await;
-        }
-    }
+    let mut app = client_core::App::new(args.type_).await;
     app.run().await?;
     Ok(())
 }
