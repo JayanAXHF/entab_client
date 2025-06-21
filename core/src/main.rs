@@ -33,13 +33,11 @@ async fn main() -> anyhow::Result<()> {
     match args.type_.clone() {
         AssignmentType::Homework => {
             let hw = get_hw().await;
-            println!("hw: {:?}", hw.unwrap());
         }
         AssignmentType::Circular => {
             let hw = get_circular().await;
-            println!("hw: {:?}", hw.unwrap());
         }
     }
-    //app.run().await?;
+    app.run().await?;
     Ok(())
 }
