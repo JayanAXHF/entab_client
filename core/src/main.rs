@@ -15,6 +15,12 @@ struct Args {
 
     #[arg(short, long, default_value_t = AssignmentType::Homework)]
     type_: AssignmentType,
+
+    #[arg(short, long, default_value_t = true)]
+    store_credentials: bool,
+
+    #[arg(short, long, default_value_t = true)]
+    fetch_credentials: bool,
 }
 
 #[tokio::main]
@@ -22,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let _cleanup = client_core::Cleanup;
     let args = Args::parse();
     if args.login {
-        login::Login::login().await?;
+        login::Login::login(args.store_credentials, args.fetch_credentials).await?;
     }
 
     stdout().execute(SavePosition)?;

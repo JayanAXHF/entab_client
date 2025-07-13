@@ -1,5 +1,5 @@
-use std::{collections::HashMap, env};
-
+use home::home_dir;
+use inquire::Password;
 use inquire::Text;
 use reqwest::{
     header::{
@@ -9,22 +9,74 @@ use reqwest::{
     Client,
 };
 use sha1::{Digest, Sha1};
+use std::io::Read;
+use std::io::Write;
+use std::{collections::HashMap, env};
 use tl::{parse, ParserOptions};
 
 pub struct Login;
 
-impl Login {
-    pub async fn login() -> Result<(), anyhow::Error> {
-        let username = Text::new("Username").prompt()?;
-        let password = Text::new("Password").prompt()?;
+lazy_static::lazy_static! {
+     static ref DATA_DIR: String = format!("{}/.entab", home_dir().unwrap().display());
+}
 
+impl Login {
+    pub fn store_credentials(username: &str, password: &str) {
+        std::fs::create_dir_all(DATA_DIR.clone()).unwrap();
+        let mut file = std::fs::File::create(format!("{}/credentials", DATA_DIR.clone())).unwrap();
+        file.write_all(format!("{}:{}", username, password).as_bytes())
+            .unwrap();
+    }
+    pub fn fetch_credentials() -> Result<(String, String), anyhow::Error> {
+        let mut file = std::fs::File::open(format!("{}/credentials", DATA_DIR.clone()))?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+
+        let mut split = contents.split(':');
+        let username = split.next().unwrap();
+        let password = split.next().unwrap();
+        Ok((username.to_string(), password.to_string()))
+    }
+    pub async fn login(
+        store_credentials: bool,
+        fetch_credentials: bool,
+    ) -> Result<(), anyhow::Error> {
         let res_token = Self::get_request_verification_token().await?;
         env::set_var("ENTAB_REQUEST_VERIFICATION_TOKEN", &res_token);
+        #[allow(unused_assignments)]
+        let mut username = String::new();
+        #[allow(unused_assignments)]
+        let mut hash = String::new();
+        if fetch_credentials {
+            match Self::fetch_credentials() {
+                Ok((name, pwd)) => {
+                    username = name;
+                    hash = pwd;
+                }
+                Err(_) => {
+                    username = Text::new("Username").prompt()?;
+                    let password = Password::new("Password").without_confirmation().prompt()?;
+                    let mut hasher = Sha1::new();
+                    hasher.update(password.as_bytes());
+                    let hashed = hasher.finalize();
+                    hash = hex::encode(hashed);
+                    if store_credentials {
+                        Self::store_credentials(&username, &hash);
+                    }
+                }
+            }
+        } else {
+            username = Text::new("Username").prompt()?;
+            let password = Password::new("Password").without_confirmation().prompt()?;
+            let mut hasher = Sha1::new();
+            hasher.update(password.as_bytes());
+            let hashed = hasher.finalize();
+            hash = hex::encode(hashed);
+            if store_credentials {
+                Self::store_credentials(&username, &hash);
+            }
+        }
 
-        let mut hasher = Sha1::new();
-        hasher.update(password.as_bytes());
-        let hash = hasher.finalize();
-        let hash = hex::encode(hash);
         let client = Client::new();
 
         // Set up headers
