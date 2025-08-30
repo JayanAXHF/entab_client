@@ -8,15 +8,21 @@ use crossterm::{
         Color, Print, PrintStyledContent, ResetColor, SetBackgroundColor, SetForegroundColor,
         Stylize,
     },
-    terminal::{self, disable_raw_mode, enable_raw_mode, Clear, ClearType},
+    terminal::{
+        self, disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
+        LeaveAlternateScreen,
+    },
     ExecutableCommand, QueueableCommand,
 };
 use lazy_static::lazy_static;
 use reqwest::{header, Client};
+use serde::{Deserialize, Serialize};
 use std::io::{stdout, Write};
 use std::{collections::HashMap, fmt};
 use std::{env, str::FromStr};
+use strum::EnumIter;
 use tl::{parse, ParserOptions};
+use tracing::info;
 
 lazy_static! {
     static ref SESSION_ID_STAT: String = env::var("ENTAB_SESSION_ID")
@@ -31,7 +37,7 @@ lazy_static! {
         .unwrap();
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Assignment {
     pub id: String,
     pub name: String,
@@ -425,6 +431,7 @@ impl App {
     }
     pub async fn run(&mut self) -> Result<()> {
         enable_raw_mode()?;
+        stdout().execute(EnterAlternateScreen)?;
         stdout().execute(MoveTo(0, 0))?;
         self.print_table()?;
         stdout().execute(Hide)?;
@@ -465,12 +472,22 @@ impl App {
                     } => {
                         if let Some(selected_assignment) = self.get_selected_assignment() {
                             let details = selected_assignment
-                                .get_details(self.assignment_type.clone())
+                                .get_details(self.assignment_type)
                                 .await
                                 .unwrap();
+                            stdout().execute(LeaveAlternateScreen)?;
                             stdout().execute(Clear(ClearType::All))?;
                             stdout().execute(Print("\r\n"))?;
                             stdout().execute(Print(details))?;
+                            stdout().execute(Print("\r\n"))?;
+                            stdout().execute(Print(SESSION_ID_STAT.to_string()))?;
+                            stdout().execute(Print("\r\n"))?;
+                            stdout().execute(Print(REQUEST_VERIFICATION_TOKEN_STAT.to_string()))?;
+                            stdout().execute(Print("\r\n"))?;
+                            stdout().execute(Print(ASPXAUTH_STAT.to_string()))?;
+                            stdout().execute(Print("\r\n"))?;
+
+                            stdout().execute(EnterAlternateScreen)?;
                             break;
                         }
                     }
@@ -481,6 +498,7 @@ impl App {
         }
 
         stdout().execute(Show)?;
+        stdout().execute(LeaveAlternateScreen)?;
         disable_raw_mode()?;
         Ok(())
     }
@@ -492,6 +510,7 @@ impl Drop for Cleanup {
     fn drop(&mut self) {
         disable_raw_mode().unwrap();
         stdout().execute(Show).unwrap();
+        stdout().execute(LeaveAlternateScreen).unwrap();
     }
 }
 
@@ -539,9 +558,10 @@ impl fmt::Display for Link {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, EnumIter)]
 pub enum AssignmentType {
     Circular,
+    #[default]
     Homework,
 }
 
