@@ -10,8 +10,20 @@ pub struct Cli {
     pub tick_rate: f64,
 
     /// Frame rate, i.e. number of frames per second
-    #[arg(short, long, value_name = "FLOAT", default_value_t = 60.0)]
+    #[arg(long, value_name = "FLOAT", default_value_t = 60.0)]
     pub frame_rate: f64,
+
+    /// Whether to login or to use existing `env` variables
+    #[arg(short, long)]
+    pub login: bool,
+
+    /// Whether to store credentials after login
+    #[arg(short, long, default_value_t = true)]
+    pub store_credentials: bool,
+
+    /// Whether to fetch credentials after login
+    #[arg(short, long, default_value_t = false)]
+    pub fetch_credentials: bool,
 }
 
 const VERSION_MESSAGE: &str = concat!(

@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use client_core::AssignmentType;
 use color_eyre::Result;
 use crossterm::event::KeyCode;
@@ -96,7 +98,10 @@ impl Component for Details {
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         let centered = center(area, Constraint::Percentage(50), Constraint::Percentage(50));
         let assignment = self.current_assignment.clone().unwrap_or_default();
-        let size = Size::new(centered.width, assignment.lines().count() as u16);
+        let size = Size::new(
+            centered.width,
+            max(assignment.lines().count() as u16, centered.height),
+        );
         let mut scrollview = ScrollView::new(size);
         let para = Paragraph::new(assignment)
             .style(Style::default())

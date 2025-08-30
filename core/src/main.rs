@@ -1,7 +1,6 @@
-mod login;
 use clap::Parser;
 use client_core::homework::get_hw;
-use client_core::{get_circular, AssignmentType};
+use client_core::{get_circular, login, AssignmentType};
 use crossterm::cursor::SavePosition;
 use crossterm::ExecutableCommand;
 use std::io::stdout;

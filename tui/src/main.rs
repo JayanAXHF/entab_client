@@ -1,5 +1,6 @@
 use clap::Parser;
 use cli::Cli;
+use client_core::login;
 use color_eyre::Result;
 
 use crate::app::App;
@@ -19,6 +20,11 @@ async fn main() -> Result<()> {
     crate::logging::init()?;
 
     let args = Cli::parse();
+    if args.login {
+        login::Login::login(args.store_credentials, args.fetch_credentials)
+            .await
+            .expect("Failed to login");
+    }
     let mut app = App::new(args.tick_rate, args.frame_rate)?;
     app.run().await?;
     Ok(())

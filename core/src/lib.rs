@@ -1,5 +1,6 @@
 #![allow(non_snake_case, clippy::collapsible_else_if)]
 
+pub mod login;
 use anyhow::{Context, Ok, Result};
 use crossterm::{
     cursor::{Hide, MoveLeft, MoveRight, MoveTo, MoveToColumn, MoveUp, RestorePosition, Show},
