@@ -1,8 +1,8 @@
 [package]
-name = "tui"
+name = "entab_tui"
 version = "0.1.0"
 edition = "2024"
-description = "Makesmy school portal usab;e"
+description = "Makes my school portal usable"
 authors = ["JayanAXHF <sunil.chdry@gmail.com>"]
 build = "build.rs"
 

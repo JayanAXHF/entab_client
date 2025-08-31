@@ -1,12 +1,9 @@
 use std::cmp::max;
 
-use client_core::AssignmentType;
 use color_eyre::Result;
 use crossterm::event::KeyCode;
-use itertools::Itertools;
 use layout::Flex;
 use ratatui::{prelude::*, widgets::*};
-use strum::IntoEnumIterator;
 
 use style::palette::tailwind::SLATE;
 use tokio::sync::mpsc::UnboundedSender;
@@ -15,8 +12,6 @@ use tui_scrollview::{ScrollView, ScrollViewState};
 
 use super::Component;
 use crate::{action::Action, app::Mode, config::Config};
-
-const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
 
 fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
     let [area] = Layout::horizontal([horizontal])
@@ -33,7 +28,6 @@ pub struct Details {
     mode: Mode,
     enabled: bool,
     current_assignment: Option<String>,
-    scrollview: ScrollView,
     scrollview_state: ScrollViewState,
 }
 
@@ -102,7 +96,8 @@ impl Component for Details {
             centered.width,
             max(assignment.lines().count() as u16, centered.height),
         );
-        let mut scrollview = ScrollView::new(size);
+        let mut scrollview = ScrollView::new(size)
+            .horizontal_scrollbar_visibility(tui_scrollview::ScrollbarVisibility::Never);
         let para = Paragraph::new(assignment)
             .style(Style::default())
             .block(

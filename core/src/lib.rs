@@ -23,7 +23,6 @@ use std::{collections::HashMap, fmt};
 use std::{env, str::FromStr};
 use strum::EnumIter;
 use tl::{parse, ParserOptions};
-use tracing::info;
 
 lazy_static! {
     static ref SESSION_ID_STAT: String = env::var("ENTAB_SESSION_ID")

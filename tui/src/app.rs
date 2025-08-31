@@ -25,7 +25,6 @@ pub struct App {
     last_tick_key_events: Vec<KeyEvent>,
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
-    current_assignment: Option<String>,
     assignment_type: AssignmentType,
 }
 
@@ -57,7 +56,6 @@ impl App {
             last_tick_key_events: Vec::new(),
             action_tx,
             action_rx,
-            current_assignment: None,
             assignment_type: AssignmentType::default(),
         })
     }

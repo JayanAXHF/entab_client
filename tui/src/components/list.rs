@@ -203,6 +203,10 @@ impl Component for List {
         let written = String::from_utf8(tw.into_inner().unwrap()).unwrap();
         let items = written.lines().map(|line| ListItem::new(line.to_string()));
 
+        let list_style = match self.state {
+            State::Normal => Color::Yellow.into(),
+            State::Search => Style::default(),
+        };
         let list = ListWidget::new(items)
             .highlight_style(SELECTED_STYLE)
             .highlight_symbol("> ")
@@ -212,7 +216,12 @@ impl Component for List {
                     .borders(Borders::ALL)
                     .padding(Padding::uniform(1))
                     .border_type(BorderType::Rounded)
-                    .title_top(Line::raw("Assignments").centered().bold()),
+                    .border_style(list_style)
+                    .title_top(Line::raw("Assignments").centered().bold())
+                    .title_bottom(
+                        Line::raw("Press j/k or Up/Down to move, <Enter> to select").centered(),
+                    )
+                    .title_bottom(Line::raw("Press `q` to quit, <Esc> to go back").right_aligned()),
             );
         let [top, center] =
             Layout::vertical([Constraint::Min(3), Constraint::Percentage(100)]).areas(area);
@@ -221,9 +230,14 @@ impl Component for List {
             State::Normal => Style::default(),
             State::Search => Color::Yellow.into(),
         };
+        let input_title = match self.state {
+            State::Normal => "Input (Press `/` to search)".to_string(),
+            State::Search => "Input (Press `Esc`/`Tab` to exit)".to_string(),
+        };
+
         let input = Paragraph::new(self.input.value()).style(style).block(
             Block::bordered()
-                .title("Input")
+                .title(input_title)
                 .border_type(BorderType::Rounded),
         );
         frame.render_widget(input, top);

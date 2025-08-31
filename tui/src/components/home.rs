@@ -1,10 +1,8 @@
 use client_core::AssignmentType;
 use color_eyre::Result;
 use crossterm::event::KeyCode;
-use itertools::Itertools;
 use layout::Flex;
 use ratatui::{prelude::*, widgets::*};
-use strum::IntoEnumIterator;
 
 use style::palette::tailwind::SLATE;
 use tokio::sync::mpsc::UnboundedSender;
