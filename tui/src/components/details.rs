@@ -8,7 +8,6 @@ use ratatui::{prelude::*, widgets::*};
 
 use style::palette::tailwind::SLATE;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::info;
 use tui_scrollview::{ScrollView, ScrollViewState};
 
 use super::Component;

@@ -9,7 +9,6 @@ use std::io::Write;
 use style::palette::tailwind::SLATE;
 use tabwriter::TabWriter;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::info;
 use tui_input::{Input, backend::crossterm::EventHandler};
 
 use super::Component;

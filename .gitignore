@@ -1,3 +1,10 @@
 **/target
 **/.git
 */.gitignore
+*/nohup.*
+**/.DS_Store
+**/*.log
+**/*.log.*
+**/*.gif
+**/*.pdf
+**/*.jpg

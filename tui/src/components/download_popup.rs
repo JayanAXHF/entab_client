@@ -6,7 +6,7 @@ use layout::Flex;
 use ratatui::{prelude::*, widgets::*};
 use style::palette::tailwind::SLATE;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{error, info};
+use tracing::info;
 
 use super::Component;
 use crate::{action::Action, app::Mode, config::Config};
@@ -193,6 +193,7 @@ impl AttachmentList {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> AttachmentListItem {
     fn new(attachment: Attachment) -> Self {
         Self {
@@ -200,6 +201,7 @@ impl<'a> AttachmentListItem {
             selected: false,
         }
     }
+    #[allow(clippy::needless_lifetimes)]
     fn format(&self) -> Line<'a> {
         let selected_span = Span::styled(
             if self.selected { "[x]" } else { "[ ]" }.to_string() + "  ",
@@ -222,6 +224,7 @@ impl<'a> AttachmentListItem {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'a> From<&AttachmentListItem> for ListItem<'a> {
     fn from(value: &AttachmentListItem) -> Self {
         ListItem::new(value.format())
