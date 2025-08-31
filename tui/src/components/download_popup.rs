@@ -1,17 +1,12 @@
-use std::{cmp::max, collections::HashSet, io::Write};
-
 use client_core::Attachment;
 use color_eyre::Result;
 use crossterm::event::KeyCode;
-use futures::executor::block_on;
 use itertools::Itertools;
 use layout::Flex;
 use ratatui::{prelude::*, widgets::*};
-
 use style::palette::tailwind::SLATE;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::info;
-use tui_scrollview::{ScrollView, ScrollViewState};
+use tracing::{error, info};
 
 use super::Component;
 use crate::{action::Action, app::Mode, config::Config};
@@ -86,6 +81,12 @@ impl Component for Popup {
                 self.list =
                     AttachmentList::from_iter(attachments.into_iter().map(AttachmentListItem::new));
             }
+            Action::FinishDownload => {
+                self.command_tx
+                    .clone()
+                    .unwrap()
+                    .send(Action::ToggleDownloadPopup)?;
+            }
             _ => {}
         }
         Ok(None)
@@ -111,26 +112,22 @@ impl Component for Popup {
                 return Ok(None);
             }
             KeyCode::Enter => {
+                info!("Starting Download");
                 let selected = self
                     .list
                     .list_items
                     .iter()
                     .filter(|item| item.selected)
                     .collect_vec();
-                for item in selected {
-                    let url = item.attachment.url.clone();
-                    let name = item.attachment.name.clone();
-                    let res = block_on(reqwest::get(url)).unwrap();
-                    let mut file = std::fs::File::create(name).unwrap();
-                    let content = block_on(res.bytes());
-                    if let Ok(content) = content {
-                        file.write_all(&content).unwrap();
-                    }
-                }
                 self.command_tx
                     .clone()
                     .unwrap()
-                    .send(Action::ToggleDownloadPopup)?;
+                    .send(Action::StartDownload(
+                        selected
+                            .iter()
+                            .map(|item| item.attachment.clone())
+                            .collect(),
+                    ))?;
             }
             KeyCode::Esc => {
                 self.command_tx
@@ -152,17 +149,18 @@ impl Component for Popup {
             .iter()
             .map(ListItem::from)
             .collect_vec();
+        let text_btm = "<space> to select, <enter> to download";
+        let list_block = Block::new()
+            .borders(Borders::ALL)
+            .padding(Padding::uniform(1))
+            .border_type(BorderType::Rounded)
+            .title_top(Line::raw("Attachments").centered().bold())
+            .title_bottom(Line::raw(text_btm).centered());
         let list = List::new(items)
             .highlight_style(SELECTED_STYLE)
             .highlight_symbol("> ")
             .highlight_spacing(HighlightSpacing::Always)
-            .block(
-                Block::new()
-                    .borders(Borders::ALL)
-                    .padding(Padding::uniform(1))
-                    .border_type(BorderType::Rounded)
-                    .title_top(Line::raw("Attachments").centered().bold()),
-            );
+            .block(list_block);
         if self.visible {
             frame.render_widget(Clear, centered);
             frame.render_stateful_widget(list, centered, &mut self.list.state);

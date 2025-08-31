@@ -80,8 +80,6 @@ impl Component for Details {
         Ok(None)
     }
     fn handle_key_event(&mut self, key: crossterm::event::KeyEvent) -> Result<Option<Action>> {
-        info!("Got key: {key:?}");
-
         if !self.enabled || self.popup_is_visible {
             return Ok(None);
         }
@@ -94,7 +92,7 @@ impl Component for Details {
             KeyCode::Char('d') => {
                 if let Some(assignment) = &self.assignment {
                     let attachments =
-                        futures::executor::block_on(assignment.get_attachments(&assignment));
+                        futures::executor::block_on(assignment.get_attachments(assignment));
                     if let Ok(attachments) = attachments {
                         self.command_tx
                             .clone()

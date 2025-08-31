@@ -18,4 +18,6 @@ pub enum Action {
     ToggleDownloadPopup,
     Attachments(Vec<client_core::Attachment>),
     Assignment(client_core::Assignment),
+    StartDownload(Vec<client_core::Attachment>),
+    FinishDownload,
 }

@@ -129,7 +129,6 @@ impl Component for List {
             }
             return Ok(None);
         }
-        info!("Got key: {key:?}");
         match key.code {
             KeyCode::Char('h') | KeyCode::Left => self.list.select_none(),
             KeyCode::Char('j') | KeyCode::Down => self.list.select_next(),
@@ -296,7 +295,6 @@ impl List {
 
 impl AssignmentListItem {
     fn format(&self) -> String {
-        info!("Got assignment name: {}", self.assignment.name);
         format!(
             "{}\t{}\t{}\t{}\t{}",
             self.assignment.s_no,

@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use client_core::AssignmentType;
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
@@ -5,7 +7,7 @@ use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, EnumIter};
 use tokio::sync::mpsc;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::{
     action::Action,
@@ -81,7 +83,7 @@ impl App {
         let action_tx = self.action_tx.clone();
         loop {
             self.handle_events(&mut tui).await?;
-            self.handle_actions(&mut tui)?;
+            self.handle_actions(&mut tui).await?;
             if self.should_suspend {
                 tui.suspend()?;
                 action_tx.send(Action::Resume)?;
@@ -125,7 +127,6 @@ impl App {
         };
 
         info!("Got key: {key:?}");
-        info!("Got keymap: {keymap:?}");
         match keymap.get(&vec![key]) {
             Some(action) => {
                 info!("Got action: {action:?}");
@@ -146,7 +147,7 @@ impl App {
         Ok(())
     }
 
-    fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
+    async fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             if action != Action::Tick && action != Action::Render {
                 debug!("{action:?}");
@@ -163,6 +164,24 @@ impl App {
                 Action::Render => self.render(tui)?,
                 Action::Mode(mode) => self.mode = mode,
                 Action::AssignmentType(type_) => self.assignment_type = type_,
+                Action::StartDownload(ref attachments) => {
+                    for item in attachments {
+                        let url = item.url.clone();
+                        let name = item.name.clone();
+                        let Ok(res) = reqwest::get(&url).await else {
+                            error!("Failed to download file: {:?}", url);
+                            continue;
+                        };
+                        let mut file = std::fs::File::create(name).unwrap();
+                        let content = res.bytes().await;
+                        if let Ok(content) = content {
+                            file.write_all(&content).unwrap();
+                        } else {
+                            error!("Failed to download file: {:?}", url);
+                        }
+                    }
+                    self.action_tx.send(Action::FinishDownload)?;
+                }
                 _ => {}
             }
             for component in self.components.iter_mut() {
