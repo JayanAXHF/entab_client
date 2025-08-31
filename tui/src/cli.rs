@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 use crate::config::get_data_dir;
 
@@ -24,6 +24,19 @@ pub struct Cli {
     /// Whether to fetch credentials after login
     #[arg(short, long, default_value_t = false)]
     pub fetch_credentials: bool,
+
+    #[command(subcommand)]
+    pub command: Option<Command>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Generate shell completions
+    Completions {
+        /// The shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
 }
 
 const VERSION_MESSAGE: &str = concat!(
