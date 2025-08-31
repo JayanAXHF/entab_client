@@ -37,7 +37,7 @@ lazy_static! {
         .unwrap();
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Assignment {
     pub id: String,
     pub name: String,
@@ -233,6 +233,77 @@ impl Assignment {
         let out = out.clean_string();
 
         Ok(out)
+    }
+
+    pub async fn get_attachments(&self, assignment: &Assignment) -> Result<Vec<Attachment>> {
+        let SESSION_ID: String = SESSION_ID_STAT.clone();
+        let REQUEST_VERIFICATION_TOKEN: String = REQUEST_VERIFICATION_TOKEN_STAT.clone();
+        let ASPXAUTH: String = ASPXAUTH_STAT.clone();
+
+        let client = Client::new();
+
+        let url = "https://www.lviscampuscare.org/Parent/GetAssignemtDetails";
+
+        let mut headers = header::HeaderMap::new();
+        headers.insert(
+            header::ACCEPT,
+            "application/json, text/javascript, */*; q=0.01"
+                .parse()
+                .unwrap(),
+        );
+        headers.insert(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded; charset=UTF-8"
+                .parse()
+                .unwrap(),
+        );
+        headers.insert(
+            header::ORIGIN,
+            "https://www.lviscampuscare.org".parse().unwrap(),
+        );
+        headers.insert(
+            header::REFERER,
+            "https://www.lviscampuscare.org/Parent/Assignment"
+                .parse()
+                .unwrap(),
+        );
+        headers.insert(header::USER_AGENT, "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Mobile Safari/537.36".parse().unwrap());
+        headers.insert("x-requested-with", "XMLHttpRequest".parse().unwrap());
+
+        let cookies = format!("ASP.NET_SessionId={}; chk=enable; __RequestVerificationToken={}; .ASPXAUTH={}; SchoolCode=11674", SESSION_ID, REQUEST_VERIFICATION_TOKEN, ASPXAUTH);
+        headers.insert(header::COOKIE, cookies.parse().unwrap());
+
+        let mut form = HashMap::new();
+        let type_ = self.type_.to_string();
+        form.insert("frmDate", "");
+        form.insert("AssignType", &type_);
+        form.insert("toDate", "");
+        form.insert("Subject", "0");
+        form.insert("AssigID", self.id.as_str());
+
+        let response = client
+            .post(url)
+            .headers(headers)
+            .form(&form)
+            .send()
+            .await?
+            .text()
+            .await
+            .context("Failed to get response")?;
+
+        let response: serde_json::Value =
+            serde_json::from_str(&response).context("Failed to parse response")?;
+
+        let attachments = response["Data"].as_array().unwrap()[3].as_array().unwrap();
+        let attachments = attachments.iter().map(|attachment| {
+            let filename = attachment["Attachment"].as_str().unwrap();
+            let url = format!("https://www.lviscampuscare.org/Assignment/{}", filename);
+            Attachment {
+                name: filename.to_string(),
+                url,
+            }
+        });
+        Ok(attachments.collect::<Vec<_>>())
     }
 }
 
@@ -688,4 +759,10 @@ pub mod homework {
 pub enum Modes {
     ViewingList,
     Filtering,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Attachment {
+    pub name: String,
+    pub url: String,
 }

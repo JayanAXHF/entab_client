@@ -9,6 +9,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{action::Action, app::Mode, config::Config, tui::Event};
 
 pub mod details;
+pub mod download_popup;
 pub mod home;
 pub mod list;
 

@@ -9,7 +9,7 @@ use tracing::{debug, info};
 
 use crate::{
     action::Action,
-    components::{Component, details::Details, home::Home, list::List},
+    components::{Component, details::Details, download_popup::Popup, home::Home, list::List},
     config::Config,
     tui::{Event, Tui},
 };
@@ -48,6 +48,7 @@ impl App {
                 Box::new(Home::new()),
                 Box::new(List::new()),
                 Box::new(Details::new()),
+                Box::new(Popup::new()),
             ],
             should_quit: false,
             should_suspend: false,

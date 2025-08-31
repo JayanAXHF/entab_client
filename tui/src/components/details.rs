@@ -1,5 +1,6 @@
 use std::cmp::max;
 
+use client_core::Assignment;
 use color_eyre::Result;
 use crossterm::event::KeyCode;
 use layout::Flex;
@@ -28,7 +29,9 @@ pub struct Details {
     mode: Mode,
     enabled: bool,
     current_assignment: Option<String>,
+    assignment: Option<Assignment>,
     scrollview_state: ScrollViewState,
+    popup_is_visible: bool,
 }
 
 impl Details {
@@ -36,6 +39,7 @@ impl Details {
         Details {
             mode: Mode::CurrentAssignmentScreen,
             enabled: true,
+            popup_is_visible: false,
             ..Default::default()
         }
     }
@@ -64,6 +68,13 @@ impl Component for Details {
             Action::AssignmentDetails(assignment) => {
                 self.current_assignment = assignment;
             }
+
+            Action::ToggleDownloadPopup => {
+                self.popup_is_visible = !self.popup_is_visible;
+            }
+            Action::Assignment(assignment) => {
+                self.assignment = Some(assignment);
+            }
             _ => {}
         }
         Ok(None)
@@ -71,7 +82,7 @@ impl Component for Details {
     fn handle_key_event(&mut self, key: crossterm::event::KeyEvent) -> Result<Option<Action>> {
         info!("Got key: {key:?}");
 
-        if !self.enabled {
+        if !self.enabled || self.popup_is_visible {
             return Ok(None);
         }
         match key.code {
@@ -80,6 +91,23 @@ impl Component for Details {
             KeyCode::Char('k') | KeyCode::Up => self.scrollview_state.scroll_up(),
             KeyCode::Char('f') | KeyCode::PageDown => self.scrollview_state.scroll_page_down(),
             KeyCode::Char('b') | KeyCode::PageUp => self.scrollview_state.scroll_page_up(),
+            KeyCode::Char('d') => {
+                if let Some(assignment) = &self.assignment {
+                    let attachments =
+                        futures::executor::block_on(assignment.get_attachments(&assignment));
+                    if let Ok(attachments) = attachments {
+                        self.command_tx
+                            .clone()
+                            .unwrap()
+                            .send(Action::Attachments(attachments))?;
+                        self.command_tx
+                            .clone()
+                            .unwrap()
+                            .send(Action::ToggleDownloadPopup)?;
+                    }
+                }
+                return Ok(None);
+            }
             KeyCode::Esc => {
                 self.command_tx.clone().unwrap().send(Action::ClearScreen)?;
                 return Ok(Some(Action::Mode(Mode::ListScreen)));
@@ -109,6 +137,7 @@ impl Component for Details {
                     .border_style(Style::default().fg(SLATE.c500)),
             )
             .wrap(Wrap { trim: true });
+
         scrollview.render_widget(para, scrollview.area());
         frame.render_stateful_widget(scrollview, centered, &mut self.scrollview_state);
         Ok(())

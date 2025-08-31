@@ -15,4 +15,7 @@ pub enum Action {
     Mode(crate::app::Mode),
     AssignmentType(client_core::AssignmentType),
     AssignmentDetails(Option<String>),
+    ToggleDownloadPopup,
+    Attachments(Vec<client_core::Attachment>),
+    Assignment(client_core::Assignment),
 }

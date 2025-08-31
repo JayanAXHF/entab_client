@@ -153,6 +153,10 @@ impl Component for List {
                 self.command_tx
                     .clone()
                     .unwrap()
+                    .send(Action::Assignment(selected_assignment))?;
+                self.command_tx
+                    .clone()
+                    .unwrap()
                     .send(Action::AssignmentDetails(Some(details)))?;
                 self.command_tx
                     .clone()
