@@ -3,6 +3,8 @@ use color_eyre::Result;
 use crossterm::event::KeyCode;
 use futures::executor::block_on;
 use itertools::Itertools;
+use nucleo_matcher::pattern::{AtomKind, CaseMatching, Normalization, Pattern};
+use nucleo_matcher::{Config as NucleoConfig, Matcher};
 use ratatui::widgets::List as ListWidget;
 use ratatui::{prelude::*, widgets::*};
 use std::io::Write;
@@ -55,6 +57,7 @@ pub struct AssignmentList {
 
 #[derive(Debug, Clone, Default)]
 pub struct AssignmentListItem {
+    display: String,
     assignment: Assignment,
 }
 
@@ -111,18 +114,18 @@ impl Component for List {
                 _ => {
                     self.input.handle_event(&crossterm::event::Event::Key(key));
                     let val = self.input.value();
-                    let filtered_items = self
-                        .list
-                        .list_items
-                        .iter()
-                        .filter(|item| {
-                            let a = &item.assignment;
-                            let str = format!("{} {} {}", a.name, a.type_, a.date);
-                            str.to_lowercase().contains(&val.to_lowercase())
-                        })
-                        .cloned()
-                        .collect();
-                    self.list.filtered_items = filtered_items;
+                    let current_items = self.list.list_items.clone();
+                    let mut matcher = Matcher::new(NucleoConfig::DEFAULT);
+                    let matches = Pattern::new(
+                        val,
+                        CaseMatching::Ignore,
+                        Normalization::Smart,
+                        AtomKind::Substring,
+                    )
+                    .match_list(current_items, &mut matcher);
+
+                    let new_items = matches.into_iter().map(|item| item.0).collect_vec();
+                    self.list.filtered_items = new_items;
                     self.list.state.select_first();
                 }
             }
@@ -304,7 +307,14 @@ impl AssignmentListItem {
         )
     }
     fn new(assignment: Assignment) -> Self {
-        Self { assignment }
+        let display = format!(
+            "{} {} {}",
+            assignment.name, assignment.type_, assignment.date
+        );
+        Self {
+            assignment,
+            display,
+        }
     }
 }
 
@@ -312,5 +322,11 @@ impl From<&AssignmentListItem> for ListItem<'_> {
     fn from(value: &AssignmentListItem) -> Self {
         let val = value.format();
         ListItem::new(val)
+    }
+}
+
+impl AsRef<str> for AssignmentListItem {
+    fn as_ref(&self) -> &str {
+        self.display.as_ref()
     }
 }
