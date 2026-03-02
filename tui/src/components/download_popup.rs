@@ -111,6 +111,17 @@ impl Component for Popup {
                 self.list.list_items[idx] = item;
                 return Ok(None);
             }
+            KeyCode::Char('o') => {
+                let idx = self.list.state.selected().unwrap();
+                let item = self.list.list_items[idx].clone();
+                self.command_tx
+                    .as_ref()
+                    .unwrap()
+                    .send(Action::StartZathura {
+                        attachment: item.attachment,
+                    })?;
+                return Ok(None);
+            }
             KeyCode::Enter => {
                 info!("Starting Download");
                 let selected = self
@@ -120,7 +131,7 @@ impl Component for Popup {
                     .filter(|item| item.selected)
                     .collect_vec();
                 self.command_tx
-                    .clone()
+                    .as_ref()
                     .unwrap()
                     .send(Action::StartDownload(
                         selected
@@ -149,7 +160,7 @@ impl Component for Popup {
             .iter()
             .map(ListItem::from)
             .collect_vec();
-        let text_btm = "<space> to select, <enter> to download";
+        let text_btm = "<space> to select, <enter> to download, <o> to open with zathura";
         let list_block = Block::new()
             .borders(Borders::ALL)
             .padding(Padding::uniform(1))
@@ -219,8 +230,7 @@ impl<'a> AttachmentListItem {
         } else {
             Style::default().add_modifier(Modifier::DIM)
         };
-        let line = Line::from(vec![selected_span, text]).style(line_style);
-        line
+        Line::from(vec![selected_span, text]).style(line_style)
     }
 }
 

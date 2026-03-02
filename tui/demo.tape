@@ -1,43 +1,83 @@
-Output demo.gif
-
-# Set up a 1200x600 terminal with 46px font.
-Set FontSize 16
-Set Width 1920
-Set Height 1080
-
 Set Shell zsh
 Sleep 2.5s
-Type "cargo run"
-Sleep 3s
+Type "entab"
+Sleep 500ms
+Tab
+Sleep 500ms
+Type "-lf"
+Sleep 500ms
 Enter
-Sleep 5s
-Type "jjk"
-Sleep 3s
-Enter
-Sleep 3s
-Type "/"
-Sleep 3s
-Type "half"
-Sleep 4s
-Escape
-Type "jk"
-Enter
-Sleep 4s
-Type "kk"
-Sleep 6s
-Escape
-Sleep 3s
-Escape
+Sleep 1.5s
 Type "j"
+Sleep 2s
+Type "jk"
+Sleep 500ms
 Enter
+Sleep 1s
+Type "j"
 Sleep 2.5s
-Type "jjjjjjjjjjjjjjjjjjjjjjjjjkjj"
-Sleep 2.5s
-Enter
-Sleep 3.5s
-Type "kjjk"
-Sleep 4.5s
+Type "jjj"
+Sleep 500ms
+Type "jjjjjj/map"
+Sleep 1.5s
+Backspace 4
+Sleep 1s
+Type "Model"
+Sleep 1s
 Escape
-Sleep 4.5s
-Type "q"
-Sleep 3s
+Sleep 500ms
+Type "j"
+Sleep 500ms
+Enter
+Sleep 1s
+Type "kkjjkkd"
+Sleep 500ms
+Type "jjk"
+Sleep 1.5s
+Type " jk j "
+Sleep 500ms
+Enter
+Sleep 1.5s
+Escape
+Sleep 500ms
+Escape
+Sleep 500ms
+Type "j"
+Sleep 500ms
+Enter
+Sleep 2.5s
+Type "/"
+Sleep 500ms
+Type "prac"
+Sleep 500ms
+Backspace 9
+Sleep 500ms
+Type "practice"
+Sleep 3.5s
+Escape
+Sleep 500ms
+Type "j"
+Sleep 2s
+Enter
+Sleep 4s
+Type "d"
+Sleep 1s
+Type "j"
+Sleep 500ms
+Type " "
+Sleep 1.5s
+Type " "
+Sleep 500ms
+Escape
+Sleep 500ms
+Type "qclear"
+Sleep 500ms
+Enter
+Sleep 500ms
+Type "ls"
+Sleep 500ms
+Enter
+Sleep 6s
+Type "ei"
+Sleep 500ms
+Backspace

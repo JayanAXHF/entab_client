@@ -6,6 +6,7 @@ use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, EnumIter};
+use tempfile::NamedTempFile;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
@@ -164,11 +165,31 @@ impl App {
                 Action::Render => self.render(tui)?,
                 Action::Mode(mode) => self.mode = mode,
                 Action::AssignmentType(type_) => self.assignment_type = type_,
+                Action::StartZathura { ref attachment } => {
+                    let url = &attachment.url;
+                    let Ok(res) = reqwest::get(url).await else {
+                        error!("Failed to download file: {:?}", url);
+                        continue;
+                    };
+                    let mut file = NamedTempFile::new()?;
+                    let content = res.bytes().await;
+                    if let Ok(content) = content {
+                        file.write_all(&content).unwrap();
+                    } else {
+                        error!("Failed to download file: {:?}", url);
+                    }
+
+                    let path = file.into_temp_path();
+                    let _ = std::process::Command::new("zathura")
+                        .stdout(std::process::Stdio::null())
+                        .arg(path.to_str().unwrap())
+                        .output()?;
+                }
                 Action::StartDownload(ref attachments) => {
                     for item in attachments {
-                        let url = item.url.clone();
-                        let name = item.name.clone();
-                        let Ok(res) = reqwest::get(&url).await else {
+                        let url = &item.url;
+                        let name = &item.name;
+                        let Ok(res) = reqwest::get(url).await else {
                             error!("Failed to download file: {:?}", url);
                             continue;
                         };
@@ -202,12 +223,12 @@ impl App {
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         tui.draw(|frame| {
             for component in self.components.iter_mut() {
-                if self.mode == component.get_mode() {
-                    if let Err(err) = component.draw(frame, frame.area()) {
-                        let _ = self
-                            .action_tx
-                            .send(Action::Error(format!("Failed to draw: {:?}", err)));
-                    }
+                if self.mode == component.get_mode()
+                    && let Err(err) = component.draw(frame, frame.area())
+                {
+                    let _ = self
+                        .action_tx
+                        .send(Action::Error(format!("Failed to draw: {:?}", err)));
                 }
             }
         })?;

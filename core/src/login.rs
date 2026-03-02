@@ -202,8 +202,11 @@ impl Login {
         let mut token = String::new();
         parsed_table.nodes().iter().for_each(|row| {
             let tag = row.as_tag();
-            if tag.is_some() && tag.unwrap().name() == "input" {
-                let attributes = tag.unwrap().attributes();
+            if let Some(tag) = tag {
+                if tag.name() != "input" {
+                    return;
+                }
+                let attributes = tag.attributes();
                 if let Some(name) = attributes.get("name") {
                     if name.unwrap().as_utf8_str() == "__RequestVerificationToken" {
                         let value = attributes

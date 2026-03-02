@@ -120,10 +120,10 @@ pub async fn get_circular() -> Result<Vec<Assignment>> {
             let mut id = String::new();
             for subnode in subnodes {
                 let tag = subnode.as_tag();
-                if tag.is_some() {
+                if let Some(tag) = tag {
                     let text = subnode.inner_text(parser).to_string();
                     row.push(text.replace(['\r', '\n'], "").trim().to_string());
-                    if let Some(a_id) = tag.unwrap().attributes().id() {
+                    if let Some(a_id) = tag.attributes().id() {
                         id = a_id.to_owned().as_utf8_str().to_string();
                     }
                 }
@@ -227,7 +227,7 @@ impl Assignment {
         });
         out.push_str("\r\n");
         links.for_each(|link| {
-            out.push_str(&link.to_string());
+            out.push_str(link.url());
             out.push('\t');
         });
         let out = out.clean_string();
@@ -235,7 +235,7 @@ impl Assignment {
         Ok(out)
     }
 
-    pub async fn get_attachments(&self, assignment: &Assignment) -> Result<Vec<Attachment>> {
+    pub async fn get_attachments(&self, _assignment: &Assignment) -> Result<Vec<Attachment>> {
         let SESSION_ID: String = SESSION_ID_STAT.clone();
         let REQUEST_VERIFICATION_TOKEN: String = REQUEST_VERIFICATION_TOKEN_STAT.clone();
         let ASPXAUTH: String = ASPXAUTH_STAT.clone();
@@ -617,6 +617,12 @@ impl Link {
     pub fn new(text: String, url: String) -> Self {
         Self { text, url }
     }
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+    pub fn url(&self) -> &str {
+        &self.url
+    }
 }
 
 impl fmt::Display for Link {
@@ -732,10 +738,10 @@ pub mod homework {
                 let mut id = String::new();
                 for subnode in subnodes {
                     let tag = subnode.as_tag();
-                    if tag.is_some() {
+                    if let Some(tag) = tag {
                         let text = subnode.inner_text(parser).to_string();
                         row.push(text.replace(['\r', '\n'], "").trim().to_string());
-                        if let Some(a_id) = tag.unwrap().attributes().id() {
+                        if let Some(a_id) = tag.attributes().id() {
                             id = a_id.to_owned().as_utf8_str().to_string();
                         }
                     }

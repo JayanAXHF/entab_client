@@ -16,6 +16,7 @@ pub enum Action {
     AssignmentType(client_core::AssignmentType),
     AssignmentDetails(Option<String>),
     ToggleDownloadPopup,
+    StartZathura { attachment: client_core::Attachment },
     Attachments(Vec<client_core::Attachment>),
     Assignment(client_core::Assignment),
     StartDownload(Vec<client_core::Attachment>),
